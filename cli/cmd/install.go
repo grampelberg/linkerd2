@@ -207,7 +207,7 @@ func newCmdInstall() *cobra.Command {
 
 	// The base flags are recorded separately s that they can be serialized into
 	// the configuration in validateAndBuild.
-	flags := options.recordableFlagSet(pflag.ExitOnError)
+	flags := options.recordableFlagSet()
 
 	cmd := &cobra.Command{
 		Use:   "install [flags]",
@@ -230,7 +230,7 @@ func newCmdInstall() *cobra.Command {
 	cmd.PersistentFlags().AddFlagSet(flags)
 
 	// Some flags are not available during upgrade, etc.
-	cmd.PersistentFlags().AddFlagSet(options.installOnlyFlagSet(pflag.ExitOnError))
+	cmd.PersistentFlags().AddFlagSet(options.installOnlyFlagSet())
 
 	return cmd
 }
@@ -258,7 +258,9 @@ func (options *installOptions) validateAndBuild(flags *pflag.FlagSet) (*installV
 }
 
 // recordableFlagSet returns flags usable during install or upgrade.
-func (options *installOptions) recordableFlagSet(e pflag.ErrorHandling) *pflag.FlagSet {
+func (options *installOptions) recordableFlagSet() *pflag.FlagSet {
+	e := pflag.ExitOnError
+
 	flags := pflag.NewFlagSet("install", e)
 
 	flags.AddFlagSet(options.proxyConfigOptions.flagSet(e))
@@ -306,8 +308,8 @@ func (options *installOptions) recordableFlagSet(e pflag.ErrorHandling) *pflag.F
 
 // installOnlyFlagSet includes flags that are only accessible at install-time
 // and not at upgrade-time.
-func (options *installOptions) installOnlyFlagSet(e pflag.ErrorHandling) *pflag.FlagSet {
-	flags := pflag.NewFlagSet("install-only", e)
+func (options *installOptions) installOnlyFlagSet() *pflag.FlagSet {
+	flags := pflag.NewFlagSet("install-only", pflag.ExitOnError)
 
 	flags.StringVar(
 		&options.identityOptions.trustDomain, "identity-trust-domain", options.identityOptions.trustDomain,

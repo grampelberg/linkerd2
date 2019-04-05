@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
+	pb "github.com/linkerd/linkerd2/controller/gen/config"
 	"github.com/linkerd/linkerd2/pkg/k8s"
-	"github.com/spf13/pflag"
 )
 
 func TestRenderUpgrade(t *testing.T) {
@@ -43,7 +46,7 @@ data:
 	}
 
 	options := newUpgradeOptionsWithDefaults()
-	flags := options.recordableFlagSet(pflag.ExitOnError)
+	flags := options.recordableFlagSet()
 
 	clientset, _, err := k8s.NewFakeClientSets(k8sConfigs...)
 	if err != nil {
@@ -60,4 +63,79 @@ data:
 		t.Fatalf("could not render upgrade configuration: %s", err)
 	}
 	diffTestdata(t, "upgrade_default.golden", buf.String())
+}
+
+func TestFetchConfigs(t *testing.T) {
+	options := testInstallOptions()
+	values, _, err := options.validateAndBuild(nil)
+	if err != nil {
+		t.Fatalf("Unexpected error validating options: %v", err)
+	}
+	exp := options.configs(values.Identity.toIdentityContext())
+
+	testCases := []struct {
+		k8sConfigs []string
+		expected   *pb.All
+		err        error
+	}{
+		{
+			[]string{`
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: linkerd-config
+  namespace: linkerd
+data:
+  global: |
+    {"linkerdNamespace":"linkerd","cniEnabled":false,"version":"dev-undefined","identityContext":{"trustDomain":"cluster.local","trustAnchorsPem":"-----BEGIN CERTIFICATE-----\nMIIBYDCCAQegAwIBAgIBATAKBggqhkjOPQQDAjAYMRYwFAYDVQQDEw1jbHVzdGVy\nLmxvY2FsMB4XDTE5MDMwMzAxNTk1MloXDTI5MDIyODAyMDM1MlowGDEWMBQGA1UE\nAxMNY2x1c3Rlci5sb2NhbDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABAChpAt0\nxtgO9qbVtEtDK80N6iCL2Htyf2kIv2m5QkJ1y0TFQi5hTVe3wtspJ8YpZF0pl364\n6TiYeXB8tOOhIACjQjBAMA4GA1UdDwEB/wQEAwIBBjAdBgNVHSUEFjAUBggrBgEF\nBQcDAQYIKwYBBQUHAwIwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNHADBE\nAiBQ/AAwF8kG8VOmRSUTPakSSa/N4mqK2HsZuhQXCmiZHwIgZEzI5DCkpU7w3SIv\nOLO4Zsk1XrGZHGsmyiEyvYF9lpY=\n-----END CERTIFICATE-----\n","issuanceLifetime":"86400s","clockSkewAllowance":"20s"},"autoInjectContext":null}
+  proxy: |
+    {"proxyImage":{"imageName":"gcr.io/linkerd-io/proxy","pullPolicy":"IfNotPresent"},"proxyInitImage":{"imageName":"gcr.io/linkerd-io/proxy-init","pullPolicy":"IfNotPresent"},"controlPort":{"port":4190},"ignoreInboundPorts":[],"ignoreOutboundPorts":[],"inboundPort":{"port":4143},"adminPort":{"port":4191},"outboundPort":{"port":4140},"resource":{"requestCpu":"","requestMemory":"","limitCpu":"","limitMemory":""},"proxyUid":"2102","logLevel":{"level":"warn,linkerd2_proxy=info"},"disableExternalProfiles":true}
+  install: |
+    {"uuid":"deaab91a-f4ab-448a-b7d1-c832a2fa0a60","cliVersion":"dev-undefined","flags":[]}`,
+			},
+			exp,
+			nil,
+		},
+		{
+			[]string{`
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: linkerd-config
+  namespace: linkerd
+data:
+  global: "{}"
+  proxy: "{}"
+  install: "{}"`,
+			},
+			&pb.All{Global: &pb.Global{}, Proxy: &pb.Proxy{}, Install: &pb.Install{}},
+			nil,
+		},
+		{
+			nil,
+			nil,
+			errors.New("configmaps \"linkerd-config\" not found"),
+		},
+	}
+
+	for i, tc := range testCases {
+		tc := tc // pin
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			clientset, _, err := k8s.NewFakeClientSets(tc.k8sConfigs...)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+
+			configs, err := fetchConfigs(clientset)
+			if (err == nil && tc.err != nil) ||
+				(err != nil && tc.err == nil) ||
+				((err != nil && tc.err != nil) && (err.Error() != tc.err.Error())) {
+				t.Fatalf("Expected \"%s\", got \"%s\"", tc.err, err)
+			}
+
+			if !proto.Equal(configs, tc.expected) {
+				t.Fatalf("Unexpected config:\nExpected:\n%+v\nGot:\n%+v", tc.expected, configs)
+			}
+		})
+	}
 }
