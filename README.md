@@ -1,4 +1,5 @@
 ![Linkerd][logo]
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fgrampelberg%2Flinkerd2.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fgrampelberg%2Flinkerd2?ref=badge_shield)
 
 [![Build Status][ci-badge]][ci]
 [![GitHub license][license-badge]](LICENSE)
@@ -92,3 +93,6 @@ specific language governing permissions and limitations under the License.
 [slack-badge]: http://slack.linkerd.io/badge.svg
 [slack]: http://slack.linkerd.io
 [twitter]: https://twitter.com/linkerd
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fgrampelberg%2Flinkerd2.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fgrampelberg%2Flinkerd2?ref=badge_large)
